@@ -8,7 +8,7 @@ class FrontendStaticBlogGenerator {
     this.config = {
       title: "My Blog",
       author: "Anonymous",
-      aboutMe: "Welcome to my blog!",
+      aboutme: "Welcome to my blog!",
     };
     this.currentPage = 1;
     this.postsPerPage = 5;
@@ -169,7 +169,7 @@ class FrontendStaticBlogGenerator {
     this.aboutHtml = `
       ${this.generateBreadcrumb(["About"])}
       <h1>About Me</h1>
-      <p>${this.config.aboutMe}</p>
+      <p>${this.config.aboutme}</p>
       <p><a href="#" onclick="app.generateHomePage()"><i class="fas fa-home"></i> Back to Home</a></p>
     `;
   }
