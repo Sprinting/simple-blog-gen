@@ -15,7 +15,8 @@ class FrontendStaticBlogGenerator {
     this.totalPosts = 0;
     this.currentSort = "date";
     this.currentGroup = "none";
-    this.allPostsMetadata = []; // New property to store all posts metadata
+    this.allPostsMetadata = [];
+    this.currentTag = null
   }
 
   async fetchAllPostsMetadata() {
@@ -23,27 +24,33 @@ class FrontendStaticBlogGenerator {
     try {
       const response = await fetch(apiUrl);
       const files = await response.json();
-      const markdownFiles = files.filter(
-        (file) =>
-          file.name.endsWith(".md") &&
-          !["readme.md", "config.md"].includes(file.name.toLowerCase())
-      );
-
-      this.allPostsMetadata = await Promise.all(
-        markdownFiles.map(async (file) => {
-          const metadata = await this.fetchFileMetadata(file.download_url);
-          return {
-            filename: file.name,
-            ...metadata,
-            contentUrl: file.download_url,
-          };
-        })
-      );
+      const markdownFiles = files.filter(file => file.name.endsWith(".md") && !["readme.md", "config.md"].includes(file.name.toLowerCase()));
+      
+      this.allPostsMetadata = await Promise.all(markdownFiles.map(async file => {
+        const metadata = await this.fetchFileMetadata(file.download_url);
+        return {
+          filename: file.name,
+          ...metadata,
+          contentUrl: file.download_url
+        };
+      }));
 
       this.totalPosts = this.allPostsMetadata.length;
+      this.updateTagsList(); // Update the list of all tags
     } catch (error) {
       console.error("Error fetching all posts metadata:", error);
       this.showErrorPage("Failed to fetch blog posts. Please try again later.");
+    }
+  }
+  updateTagsList() {
+    this.tags = {};
+    for (const post of this.allPostsMetadata) {
+      for (const tag of post.tags || []) {
+        if (!this.tags[tag]) {
+          this.tags[tag] = [];
+        }
+        this.tags[tag].push(post);
+      }
     }
   }
   async fetchConfig() {
@@ -106,12 +113,18 @@ class FrontendStaticBlogGenerator {
   async fetchPostsForPage(page) {
     const start = (page - 1) * this.postsPerPage;
     const end = start + this.postsPerPage;
-
-    // Sort all posts metadata
-    const sortedPosts = this.sortPosts(this.allPostsMetadata);
-
+    
+    // Filter posts if a tag is selected
+    let filteredPosts = this.currentTag 
+      ? this.allPostsMetadata.filter(post => post.tags && post.tags.includes(this.currentTag))
+      : this.allPostsMetadata;
+    
+    // Sort filtered posts
+    const sortedPosts = this.sortPosts(filteredPosts);
+    
     // Get the slice of posts for the current page
     this.posts = sortedPosts.slice(start, end);
+    this.totalPosts = filteredPosts.length; // Update total posts count for pagination
   }
 
   async fetchFileMetadata(url) {
@@ -169,63 +182,47 @@ class FrontendStaticBlogGenerator {
     this.aboutHtml = `
       ${this.generateBreadcrumb(["About"])}
       <h1>About Me</h1>
-      <p>${this.config.aboutme}</p>
+      <p>${marked.parse(this.config.aboutme)}</p>
       <p><a href="#" onclick="app.generateHomePage()"><i class="fas fa-home"></i> Back to Home</a></p>
     `;
   }
-
   generatePostsPage() {
     const groupedPosts = this.groupPosts(this.posts);
-
-    let postsHtml = "";
+    
+    let postsHtml = '';
     for (const [group, posts] of Object.entries(groupedPosts)) {
       postsHtml += `<h2>${group}</h2>`;
-      postsHtml += posts
-        .map(
-          (post) => `
+      postsHtml += posts.map(post => `
         <article>
-          <h3><a href="#" onclick="app.showPost('${post.filename}')">${
-            post.title
-          }</a></h3>
-          <p><i class="far fa-calendar-alt"></i> ${this.formatDate(
-            post.date
-          )}</p>
+          <h3><a href="#" onclick="app.showPost('${post.filename}')">${post.title}</a></h3>
+          <p><i class="far fa-calendar-alt"></i> ${this.formatDate(post.date)}</p>
           <p>${post.description || ""}</p>
           <p>${this.generateTagsHtml(post.tags)}</p>
         </article>
-      `
-        )
-        .join("");
+      `).join('');
     }
 
+    const tagFilterHtml = this.currentTag 
+      ? `<p>Showing posts tagged with: <strong>${this.currentTag}</strong> <a href="#" onclick="app.clearTagFilter()">(Clear filter)</a></p>`
+      : '';
+
     this.postsHtml = `
-      ${this.generateBreadcrumb(["Posts"])}
+      ${this.generateBreadcrumb(this.currentTag ? ["Posts", `Tag: ${this.currentTag}`] : ["Posts"])}
       <h1>Blog Posts</h1>
+      ${tagFilterHtml}
       <div>
         <label><i class="fas fa-sort"></i> Sort by: 
           <select onchange="app.changeSort(this.value)">
-            <option value="date" ${
-              this.currentSort === "date" ? "selected" : ""
-            }>Date</option>
-            <option value="title" ${
-              this.currentSort === "title" ? "selected" : ""
-            }>Title</option>
+            <option value="date" ${this.currentSort === 'date' ? 'selected' : ''}>Date</option>
+            <option value="title" ${this.currentSort === 'title' ? 'selected' : ''}>Title</option>
           </select>
         </label>
         <label><i class="fas fa-layer-group"></i> Group by: 
           <select onchange="app.changeGroup(this.value)">
-            <option value="none" ${
-              this.currentGroup === "none" ? "selected" : ""
-            }>None</option>
-            <option value="tags" ${
-              this.currentGroup === "tags" ? "selected" : ""
-            }>Tags</option>
-            <option value="month" ${
-              this.currentGroup === "month" ? "selected" : ""
-            }>Month</option>
-            <option value="year" ${
-              this.currentGroup === "year" ? "selected" : ""
-            }>Year</option>
+            <option value="none" ${this.currentGroup === 'none' ? 'selected' : ''}>None</option>
+            <option value="tags" ${this.currentGroup === 'tags' ? 'selected' : ''}>Tags</option>
+            <option value="month" ${this.currentGroup === 'month' ? 'selected' : ''}>Month</option>
+            <option value="year" ${this.currentGroup === 'year' ? 'selected' : ''}>Year</option>
           </select>
         </label>
       </div>
@@ -235,6 +232,17 @@ class FrontendStaticBlogGenerator {
     `;
 
     this.container.innerHTML = this.postsHtml;
+  }
+
+  async clearTagFilter() {
+    this.currentTag = null;
+    this.currentPage = 1;
+    await this.fetchPostsForPage(this.currentPage);
+    this.generatePostsPage();
+  }
+
+  generateTagsHtml(tags) {
+    return tags.map(tag => `<span class="tag" onclick="app.showTag('${tag}')">${tag}</span>`).join(' ');
   }
 
   async showPost(filename) {
@@ -282,8 +290,11 @@ class FrontendStaticBlogGenerator {
     this.generatePostsPage();
   }
 
-  showTag(tag) {
-    this.currentGroup = "tags";
+  async showTag(tag) {
+    this.currentTag = tag;
+    this.currentPage = 1; // Reset to first page when changing tag
+    this.currentGroup = 'none'; // Reset grouping when filtering by tag
+    await this.fetchPostsForPage(this.currentPage);
     this.generatePostsPage();
   }
 
@@ -412,14 +423,7 @@ class FrontendStaticBlogGenerator {
     return new Date(dateString).toLocaleDateString(undefined, options);
   }
 
-  generateTagsHtml(tags) {
-    return tags
-      .map(
-        (tag) =>
-          `<span class="tag" onclick="app.showTag('${tag}')">${tag}</span>`
-      )
-      .join(" ");
-  }
+
   async generate() {
     try {
       await this.fetchConfig();

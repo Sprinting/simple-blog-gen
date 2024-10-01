@@ -3,25 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Static Blog</title>
+    <title>My Blog</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="script.js"></script>
     <link rel="stylesheet" href="style.css" />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css"
-    />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+    <script src="theme-manager.js"></script>
+    <script src="script.js"></script>
   </head>
   <body>
     <div id="blog-container"></div>
     <script>
-      const app = new FrontendStaticBlogGenerator(
-        "sprinting",
-        "example-blog-dump",
-        "blog-container"
-      );
-      app.generate();
-      document.querySelector("title").innerHTML = app.config.title;
+      let app = undefined
+      const user ="sprinting"
+      const blog_source ="example-blog-dump"
+      document.addEventListener('DOMContentLoaded', async () => {
+        const themeManager = new ThemeManager(user, blog_source);
+        await themeManager.initialize();
+
+        const _app = new FrontendStaticBlogGenerator(
+          user,
+          blog_source,
+          "blog-container"
+        );
+        await _app.generate().then(()=>{app=_app});
+        document.querySelector('title').innerHTML = app.config.title;
+      });
     </script>
   </body>
 </html>
